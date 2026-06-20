@@ -1,6 +1,6 @@
 {
-  "name": "tribunal",
-  "version": "0.0.1",
+  "name": "@eviano/tribunal",
+  "version": "0.1.2",
   "description": "A deterministic, no-LLM-in-the-loop CI gate that catches agent-PR defects: assertion-free tests, hallucinated symbols, and PR claims that contradict the diff.",
   "type": "module",
   "bin": {
@@ -20,6 +20,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "build:action": "esbuild src/cli.ts --bundle --platform=node --target=node18 --format=cjs --minify --outfile=action-dist/cli.cjs",
+    "prepublishOnly": "npm run build",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -37,6 +38,17 @@
     "github-action"
   ],
   "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/eviano/tribunal.git"
+  },
+  "homepage": "https://github.com/eviano/tribunal#readme",
+  "bugs": {
+    "url": "https://github.com/eviano/tribunal/issues"
+  },
   "dependencies": {
     "typescript": "^5.6.3"
   },

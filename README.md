@@ -28,27 +28,30 @@ guarantees, not vibes:
 5. **Reporter-first.** Default mode is a non-blocking PR comment. Teams earn trust in the signal before
    it can break their build.
 
-## Quickstart
+## Install
+
+[![npm](https://img.shields.io/npm/v/@eviano/tribunal)](https://www.npmjs.com/package/@eviano/tribunal)
+
+```bash
+npm i -D @eviano/tribunal
+```
+
+Run it against a PR range (report-only by default; gates only on 🔴 CONTRADICTED):
+
+```bash
+npx @eviano/tribunal check --base main --head HEAD
+npx @eviano/tribunal check                       # diff working tree vs HEAD
+npx @eviano/tribunal check --diff some.patch      # analyze a unified diff file
+npx @eviano/tribunal check --format json
+npx @eviano/tribunal check --base main --head HEAD --hard-fail   # block the build
+```
+
+## Develop from source
 
 ```bash
 npm install
 npm test            # run the suite
 npm run check -- check --help
-```
-
-Run it against your working changes (report-only):
-
-```bash
-npm run check -- check                     # diff working tree vs HEAD
-npm run check -- check --base main --head HEAD
-npm run check -- check --diff some.patch    # analyze a unified diff file
-npm run check -- check --format json
-```
-
-Make it block a build (opt-in, gates only on 🔴 CONTRADICTED):
-
-```bash
-npm run check -- check --base main --head HEAD --hard-fail
 ```
 
 ## Use it in CI (GitHub Action)
