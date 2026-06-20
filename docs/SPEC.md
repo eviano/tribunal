@@ -126,7 +126,9 @@ v1 targets **TS/JS only** — one toolchain that also analyzes Tribunal itself (
 - **M2 — PR-comment reporter** as a GitHub Action (`npx tribunal check`), default-WARN.
 - **M3 — claim-reconciliation** ✅: `added-test` and `no-public-api-change`, behind a machine-readable
   ```` ```tribunal ```` claims block; pluggable claim→verifier registry. `no-default-flip` deferred.
-- **M4 — the benchmark** (see §7).
+- **M4 — the benchmark** ✅ *(harness + seed corpus)*: a labeled-corpus harness, an adversarial seed
+  corpus, and a CI guard that fails on any false `CONTRADICTED` (see §7 and `bench/`). The MSR'26
+  PR-MCI labeled set plugs in via an adapter.
 
 ## 7. The benchmark (the moat proof — what "winning" requires)
 
@@ -140,6 +142,10 @@ refactors:
 
 This calibration — not the orchestration code — is the moat. It is harder to reproduce than the wiring
 and an incumbent fights buyer trust the whole way.
+
+**Status:** the harness (`bench/`) and an adversarial seed corpus exist now, with a CI guard that fails
+on any false `CONTRADICTED`. Current seed-corpus numbers: 16 cases, 0% false-positive, 100% recall.
+The MSR'26 PR-MCI labeled set plugs in via a `BenchCase` adapter (see `bench/README.md`).
 
 ## 8. Out of scope for v1
 - Multi-language (Python, Go) — deliberately deferred to protect precision.

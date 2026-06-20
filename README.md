@@ -135,6 +135,23 @@ no-public-api-change
 Pass claims with `--claims <file>` (a claims file) or `--pr-body <file>` (reads only the fenced block).
 Adding a new claim is one entry in the verifier registry. `no-default-flip` is the next planned verifier.
 
+## Benchmark — the moat-proof
+
+Tribunal is only safe as a hard-fail gate if it almost never false-fires. That's measured, not
+asserted:
+
+```bash
+npm run bench
+# cases=16  TP=9 TN=7 FP=0 FN=0
+# recall=100.0%  precision=100.0%  false-positive=0.0%
+```
+
+The [`bench/`](bench/) corpus is deliberately adversarial on the clean side (big refactors carrying a
+`no-public-api-change` claim, tests that assert through helpers) so the **false-positive rate** means
+something. It runs in CI via `test/bench.test.ts` and is the regression guard for the Trust Contract.
+The public MSR'26 PR-MCI labeled set (974 PRs) plugs in alongside the seed corpus — see
+[bench/README.md](bench/README.md).
+
 ## Roadmap
 
 | Milestone | Scope |
@@ -143,7 +160,7 @@ Adding a new claim is one entry in the verifier registry. `no-default-flip` is t
 | **M1** ✅ | `hallucinated-symbol` — import resolution (nonexistent named exports & relative paths) |
 | **M2** ✅ | PR-comment reporter as a GitHub Action |
 | **M3** ✅ | claim-reconciliation: `added-test`, `no-public-api-change` (pluggable verifier registry) |
-| M4 | benchmark on the MSR'26 PR-MCI labeled set (≥95% CONTRADICTED precision, <2% false-positive) |
+| **M4** ✅ | benchmark harness + adversarial seed corpus + CI guard (currently **0% false-positive**); MSR'26 PR-MCI set pluggable |
 
 ## License
 

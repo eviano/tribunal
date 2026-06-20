@@ -22,6 +22,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "bench": "tsx bench/run.ts",
     "check": "tsx src/cli.ts"
   },
   "keywords": [
