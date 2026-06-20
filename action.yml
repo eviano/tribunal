@@ -1,4 +1,4 @@
-name: 'Tribunal'
+name: 'Tribunal PR Gate'
 description: 'A deterministic, no-LLM CI gate that catches agent-PR defects (assertion-free tests, hallucinated imports).'
 branding:
   icon: 'shield'
