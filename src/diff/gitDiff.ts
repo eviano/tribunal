@@ -1,7 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import type { AnalyzerContext, ChangedFile } from '../types.js';
+import type { AnalyzerContext, ChangedFile, Claim } from '../types.js';
 import { parseUnifiedDiff } from './parseUnifiedDiff.js';
 
 export interface DiffSource {
@@ -12,6 +12,8 @@ export interface DiffSource {
   head?: string;
   /** Raw unified diff text. When set, git is not invoked (useful for tests and piped diffs). */
   diffText?: string;
+  /** Machine-readable claims parsed from the PR body / claims file. */
+  claims?: Claim[];
 }
 
 /** Resolve the set of changed files from either a raw diff or `git diff`. */
@@ -38,9 +40,12 @@ export function getChangedFiles(src: DiffSource): ChangedFile[] {
 export function makeContext(src: DiffSource): AnalyzerContext {
   const repoRoot = resolve(src.repoRoot);
   const changedFiles = getChangedFiles(src);
+  // Base-tree reads require a base ref and real git history (not the piped-diff path).
+  const canReadBase = src.diffText == null && !!src.base;
   return {
     repoRoot,
-    changedFiles,
+    base: src.base,
+    claims: src.claims,
     readFile(path: string): string | null {
       const full = join(repoRoot, path);
       if (!existsSync(full)) return null;
@@ -50,5 +55,19 @@ export function makeContext(src: DiffSource): AnalyzerContext {
         return null;
       }
     },
+    readBaseFile: canReadBase
+      ? (path: string): string | null => {
+          try {
+            return execFileSync('git', ['show', `${src.base}:${path}`], {
+              cwd: repoRoot,
+              encoding: 'utf8',
+              maxBuffer: 64 * 1024 * 1024,
+            });
+          } catch {
+            return null; // path did not exist at base
+          }
+        }
+      : undefined,
+    changedFiles,
   };
 }

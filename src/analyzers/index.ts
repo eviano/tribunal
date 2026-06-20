@@ -1,11 +1,11 @@
 import type { Analyzer } from '../types.js';
 import { assertionFreeTest } from './assertionFreeTest.js';
 import { hallucinatedSymbol } from './hallucinatedSymbol.js';
+import { claimReconciliation } from './claimReconciliation.js';
 
 /**
- * The analyzer registry. New analyzers (comment-code-drift, claim-reconciliation) are added here as
- * they land. Order is display-only; analyzers are independent and side-effect free.
+ * The analyzer registry. Analyzers are independent and side-effect free; order is display-only.
  */
-export const analyzers: Analyzer[] = [assertionFreeTest, hallucinatedSymbol];
+export const analyzers: Analyzer[] = [assertionFreeTest, hallucinatedSymbol, claimReconciliation];
 
-export { assertionFreeTest, hallucinatedSymbol };
+export { assertionFreeTest, hallucinatedSymbol, claimReconciliation };

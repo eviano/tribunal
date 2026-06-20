@@ -43,12 +43,17 @@ runs:
         BASE: ${{ inputs.base }}
         HEAD: ${{ inputs.head }}
         HARD_FAIL: ${{ inputs.hard-fail }}
+        PR_BODY: ${{ github.event.pull_request.body }}
       run: |
         set +e
         EXTRA=()
         [ -n "$BASE" ] && EXTRA+=(--base "$BASE")
         [ -n "$HEAD" ] && EXTRA+=(--head "$HEAD")
         [ "$HARD_FAIL" = "true" ] && EXTRA+=(--hard-fail)
+        if [ -n "$PR_BODY" ]; then
+          printf '%s' "$PR_BODY" > "$RUNNER_TEMP/pr-body.md"
+          EXTRA+=(--pr-body "$RUNNER_TEMP/pr-body.md")
+        fi
         node "$GITHUB_ACTION_PATH/dist/cli.js" check "${EXTRA[@]}" --format md | tee "$RUNNER_TEMP/tribunal.md"
         echo "code=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
         {

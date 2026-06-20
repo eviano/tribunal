@@ -40,11 +40,27 @@ export interface ChangedFile {
   addedLines: Set<number>;
 }
 
+/** A machine-readable claim extracted from the PR body / claims file. Parsing, never NLU. */
+export interface Claim {
+  /** Normalized key, e.g. `added-test`, `no-public-api-change`. */
+  key: string;
+  /** Optional argument after a colon, e.g. `no-default-flip: timeoutMs`. */
+  arg?: string;
+  /** The original line, for display. */
+  raw: string;
+}
+
 export interface AnalyzerContext {
   repoRoot: string;
   changedFiles: ChangedFile[];
   /** Read the current (new-tree) content of a repo-relative path, or null if unavailable. */
   readFile(path: string): string | null;
+  /** Read the base-tree (pre-change) content of a path, or null if unavailable / absent at base. */
+  readBaseFile?(path: string): string | null;
+  /** The base ref the diff is taken against, when known. */
+  base?: string;
+  /** Machine-readable claims extracted from the PR body / claims file. */
+  claims?: Claim[];
 }
 
 export interface Analyzer {

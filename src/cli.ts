@@ -2,6 +2,8 @@
 import { runTribunal } from './index.js';
 import { exitCode, renderJson, renderMarkdown } from './report/render.js';
 import type { DiffSource } from './diff/gitDiff.js';
+import { parseClaims } from './claims.js';
+import type { Claim } from './types.js';
 import { readFileSync } from 'node:fs';
 
 interface CliOptions {
@@ -9,6 +11,8 @@ interface CliOptions {
   base?: string;
   head?: string;
   diffFile?: string;
+  claimsFile?: string;
+  prBodyFile?: string;
   cwd: string;
   format: 'md' | 'json';
   hardFail: boolean;
@@ -23,6 +27,8 @@ Options:
   --base <ref>     Base ref for a range diff (e.g. the PR base branch).
   --head <ref>     Head ref for a range diff. Defaults to working tree vs HEAD.
   --diff <file>    Read a unified diff from a file instead of invoking git.
+  --claims <file>  Read machine-readable claims from a file (whole file, or a tribunal fenced block).
+  --pr-body <file> Read claims ONLY from a \`\`\`tribunal fenced block in a PR-body file.
   --cwd <dir>      Repo root to run in (default: current directory).
   --format <fmt>   Output format: md (default) or json.
   --hard-fail      Exit non-zero when there is at least one CONTRADICTED finding.
@@ -51,6 +57,12 @@ function parseArgs(argv: string[]): CliOptions {
         break;
       case '--diff':
         opts.diffFile = rest.shift();
+        break;
+      case '--claims':
+        opts.claimsFile = rest.shift();
+        break;
+      case '--pr-body':
+        opts.prBodyFile = rest.shift();
         break;
       case '--cwd':
         opts.cwd = rest.shift() ?? opts.cwd;
@@ -90,11 +102,16 @@ function main(): void {
     process.exit(2);
   }
 
+  let claims: Claim[] | undefined;
+  if (opts.claimsFile) claims = parseClaims(readFileSync(opts.claimsFile, 'utf8'));
+  else if (opts.prBodyFile) claims = parseClaims(readFileSync(opts.prBodyFile, 'utf8'), { requireFence: true });
+
   const src: DiffSource = {
     repoRoot: opts.cwd,
     base: opts.base,
     head: opts.head,
     diffText: opts.diffFile ? readFileSync(opts.diffFile, 'utf8') : undefined,
+    claims,
   };
 
   let report;

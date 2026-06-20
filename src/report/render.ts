@@ -78,6 +78,7 @@ export function renderMarkdown(report: Report, hardFail: boolean): string {
 
 function renderFinding(f: Finding): string {
   const loc = f.endLine && f.endLine !== f.line ? `${f.line}-${f.endLine}` : `${f.line}`;
-  const head = `- ${VERDICT_EMOJI[f.verdict]} **${f.title}** — \`${f.file}:${loc}\` _(${f.analyzer})_`;
+  const where = f.claim ? `claim: \`${f.claim}\`` : `\`${f.file}:${loc}\``;
+  const head = `- ${VERDICT_EMOJI[f.verdict]} **${f.title}** — ${where} _(${f.analyzer})_`;
   return `${head}\n  ${f.detail}`;
 }

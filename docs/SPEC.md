@@ -100,12 +100,17 @@ Parse discrete claims → map each to a **deterministic** verifier. Extraction i
 prefer a machine-readable claims block (`tribunal.yaml` / a PR-template section) so an extraction miss
 degrades to `UNVERIFIED`, never a wrong `CONTRADICTED`.
 
-| claim | deterministic verifier (wrapped) |
-|-------|----------------------------------|
-| "added a test" | coverage-diff: a new test executes new assertions over changed lines |
-| "no public API change" | exported-symbol diff is empty (`api-extractor` / `oasdiff`) |
-| "no default change in X" | AST diff of default literals/params is empty |
-| "docs updated" | referenced symbols actually changed |
+| claim key | deterministic verifier | status |
+|-----------|------------------------|--------|
+| `added-test` | the diff adds a test; PASS if it has a reachable assertion, CONTRADICTED if no test block appears at all | ✅ **built (M3)** |
+| `no-public-api-change` | exported-symbol set is identical between base and head for changed source files | ✅ **built (M3)** |
+| `no-default-flip` | AST diff of default literals/params is empty | ▶ later |
+| `docs-updated` | referenced symbols actually changed | ▶ later |
+
+Extraction is parsing, not NLU: claims come from a ```` ```tribunal ```` fenced block in the PR body
+(or a claims file). An unrecognized claim key degrades to `UNVERIFIED` — it can never become a false
+`CONTRADICTED`. Verifying `no-public-api-change` requires the base tree, read via `git show base:path`;
+when no base ref is available the claim degrades to `UNVERIFIED`.
 
 ---
 
@@ -119,8 +124,8 @@ v1 targets **TS/JS only** — one toolchain that also analyzes Tribunal itself (
   relative paths, resolved with the target repo's own tsconfig. Full identifier/call resolution via the
   TS type checker is deferred (higher false-positive risk; demands the whole program).
 - **M2 — PR-comment reporter** as a GitHub Action (`npx tribunal check`), default-WARN.
-- **M3 — claim-reconciliation** for 3 claim types: *added test*, *no public API change*,
-  *no default flip*, behind a machine-readable claims block.
+- **M3 — claim-reconciliation** ✅: `added-test` and `no-public-api-change`, behind a machine-readable
+  ```` ```tribunal ```` claims block; pluggable claim→verifier registry. `no-default-flip` deferred.
 - **M4 — the benchmark** (see §7).
 
 ## 7. The benchmark (the moat proof — what "winning" requires)

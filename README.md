@@ -114,14 +114,35 @@ re-exports, and degrades to 🟡 UNVERIFIED whenever exports can't be statically
 unresolvable re-exports). Default imports are never flagged (interop synthesizes a default). Scope for
 M1 is imports; full identifier/call resolution is a later increment.
 
+## What M3 adds: `claim-reconciliation`
+
+Verifies the agent's **own claims** against the diff — deterministically. Claims are declared in a
+machine-readable block (parsing, never NLU), so an unrecognized claim degrades to 🟡 UNVERIFIED and can
+never become a false 🔴 CONTRADICTED:
+
+````md
+```tribunal
+added-test
+no-public-api-change
+```
+````
+
+- `added-test` → 🟢 PASS if the diff adds a test with a reachable assertion; 🔴 CONTRADICTED if it adds
+  no test at all; 🟡 UNVERIFIED if a test was added but its assertion can't be detected.
+- `no-public-api-change` → compares the exported-symbol set between base and head; 🔴 CONTRADICTED on any
+  added/removed export, 🟡 UNVERIFIED when there's no base ref or a module re-exports via `export *`.
+
+Pass claims with `--claims <file>` (a claims file) or `--pr-body <file>` (reads only the fenced block).
+Adding a new claim is one entry in the verifier registry. `no-default-flip` is the next planned verifier.
+
 ## Roadmap
 
 | Milestone | Scope |
 |-----------|-------|
 | **M0** ✅ | scaffold + `assertion-free-test` + pipeline + tests |
 | **M1** ✅ | `hallucinated-symbol` — import resolution (nonexistent named exports & relative paths) |
-| M2 | PR-comment reporter as a GitHub Action |
-| M3 | claim-reconciliation: *added test*, *no public API change*, *no default flip* |
+| **M2** ✅ | PR-comment reporter as a GitHub Action |
+| **M3** ✅ | claim-reconciliation: `added-test`, `no-public-api-change` (pluggable verifier registry) |
 | M4 | benchmark on the MSR'26 PR-MCI labeled set (≥95% CONTRADICTED precision, <2% false-positive) |
 
 ## License
