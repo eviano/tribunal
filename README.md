@@ -51,6 +51,33 @@ Make it block a build (opt-in, gates only on 🔴 CONTRADICTED):
 npm run check -- check --base main --head HEAD --hard-fail
 ```
 
+## Use it in CI (GitHub Action)
+
+Tribunal ships a reusable composite action that runs on a PR, posts a **sticky comment** with the
+report, and (optionally) fails the build — gating **only** on 🔴 CONTRADICTED.
+
+```yaml
+# .github/workflows/tribunal.yml
+name: Tribunal
+on: pull_request
+permissions:
+  contents: read
+  pull-requests: write
+jobs:
+  tribunal:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: eviano/tribunal@v1
+        with:
+          base: ${{ github.event.pull_request.base.sha }}
+          head: ${{ github.event.pull_request.head.sha }}
+          hard-fail: 'false'   # start in report-only; flip to 'true' once you trust the signal
+```
+
+This repo dogfoods its own action — see [.github/workflows/tribunal.yml](.github/workflows/tribunal.yml).
+
 ## What M0 catches: `assertion-free-test`
 
 A test the PR added or changed that **can never fail** because it asserts nothing:

@@ -1,0 +1,80 @@
+name: 'Tribunal'
+description: 'A deterministic, no-LLM CI gate that catches agent-PR defects (assertion-free tests, hallucinated imports).'
+branding:
+  icon: 'shield'
+  color: 'purple'
+inputs:
+  base:
+    description: 'Base ref/SHA for the diff (e.g. the PR base sha). Empty diffs working tree vs HEAD.'
+    required: false
+    default: ''
+  head:
+    description: 'Head ref/SHA for the diff (e.g. the PR head sha).'
+    required: false
+    default: ''
+  hard-fail:
+    description: 'Fail the job when there is at least one CONTRADICTED finding. Gates ONLY on CONTRADICTED.'
+    required: false
+    default: 'false'
+  comment:
+    description: 'Post/update a sticky comment on the PR with the report.'
+    required: false
+    default: 'true'
+  working-directory:
+    description: 'Repo root to analyze.'
+    required: false
+    default: '.'
+runs:
+  using: 'composite'
+  steps:
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Build Tribunal
+      shell: bash
+      run: ( cd "$GITHUB_ACTION_PATH" && npm ci && npm run build )
+
+    - name: Run Tribunal
+      id: run
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        BASE: ${{ inputs.base }}
+        HEAD: ${{ inputs.head }}
+        HARD_FAIL: ${{ inputs.hard-fail }}
+      run: |
+        set +e
+        EXTRA=()
+        [ -n "$BASE" ] && EXTRA+=(--base "$BASE")
+        [ -n "$HEAD" ] && EXTRA+=(--head "$HEAD")
+        [ "$HARD_FAIL" = "true" ] && EXTRA+=(--hard-fail)
+        node "$GITHUB_ACTION_PATH/dist/cli.js" check "${EXTRA[@]}" --format md | tee "$RUNNER_TEMP/tribunal.md"
+        echo "code=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
+        {
+          echo '### ⚖️ Tribunal'
+          echo
+          cat "$RUNNER_TEMP/tribunal.md"
+        } >> "$GITHUB_STEP_SUMMARY"
+
+    - name: Comment on PR
+      if: ${{ always() && inputs.comment == 'true' && github.event_name == 'pull_request' }}
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        REPO: ${{ github.repository }}
+        PR: ${{ github.event.pull_request.number }}
+      run: |
+        marker='<!-- tribunal-report -->'
+        body="$(printf '%s\n%s' "$marker" "$(cat "$RUNNER_TEMP/tribunal.md")")"
+        id="$(gh api "repos/$REPO/issues/$PR/comments" --jq "map(select(.body|startswith(\"$marker\")))|.[0].id // empty")"
+        if [ -n "$id" ]; then
+          gh api -X PATCH "repos/$REPO/issues/comments/$id" -f body="$body" >/dev/null
+        else
+          gh api -X POST "repos/$REPO/issues/$PR/comments" -f body="$body" >/dev/null
+        fi
+
+    - name: Enforce gate
+      if: ${{ always() }}
+      shell: bash
+      run: exit ${{ steps.run.outputs.code }}
