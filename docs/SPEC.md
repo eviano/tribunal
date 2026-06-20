@@ -92,8 +92,8 @@ the claim layer exists.
 | id | what it catches | status |
 |----|-----------------|--------|
 | `assertion-free-test` | tests added/changed by the PR that contain **no assertion** and can never fail | ✅ **built (M0)** |
-| `hallucinated-symbol` | calls/imports/identifiers in changed code that **don't resolve** to any definition | ▶ M1 |
-| `comment-code-drift` | a comment/docstring that references code which changed (conservative proxy only) | ▶ M2 |
+| `hallucinated-symbol` | imports the PR added that reference a module path or named export that **doesn't exist** (identifier/call resolution is a later extension) | ✅ **built (M1 — import subset)** |
+| `comment-code-drift` | a comment/docstring that references code which changed (conservative proxy only) | ▶ later |
 
 ### 5b. Claim-reconciliation analyzers — the durable moat
 Parse discrete claims → map each to a **deterministic** verifier. Extraction is **parsing, not NLU**:
@@ -115,7 +115,9 @@ v1 targets **TS/JS only** — one toolchain that also analyzes Tribunal itself (
 
 - **M0 — scaffold + `assertion-free-test`** ← *this milestone.* End-to-end pipeline: diff →
   analyzer → PASS/UNVERIFIED/CONTRADICTED report → exit code. Fully unit-tested.
-- **M1 — `hallucinated-symbol`** resolution via the TS program/type checker.
+- **M1 — `hallucinated-symbol`** ✅ *(import subset)*: nonexistent named exports and unresolvable
+  relative paths, resolved with the target repo's own tsconfig. Full identifier/call resolution via the
+  TS type checker is deferred (higher false-positive risk; demands the whole program).
 - **M2 — PR-comment reporter** as a GitHub Action (`npx tribunal check`), default-WARN.
 - **M3 — claim-reconciliation** for 3 claim types: *added test*, *no public API change*,
   *no default flip*, behind a machine-readable claims block.

@@ -72,12 +72,27 @@ It understands `expect`, `assert`/`node:assert` (incl. named imports like `stric
 assertions (`t.is`, `t.deepEqual`, …). Skipped tests (`it.skip`, `it.todo`) are ignored. Only tests
 **touched by the diff** are evaluated.
 
+## What M1 adds: `hallucinated-symbol`
+
+Imports the PR added that reference something that doesn't exist:
+
+```ts
+import { parseConifg } from './config';   // 🔴 CONTRADICTED: './config' has no export named 'parseConifg'
+import { helper } from './utils/missing'; // 🔴 CONTRADICTED: path resolves to no file
+import { Client } from 'some-sdk';        // 🟡 UNVERIFIED: package not installed (dependency check is separate)
+```
+
+It resolves modules the way the target repo's own `tsconfig.json` does, follows local `export *`
+re-exports, and degrades to 🟡 UNVERIFIED whenever exports can't be statically enumerated (CJS,
+unresolvable re-exports). Default imports are never flagged (interop synthesizes a default). Scope for
+M1 is imports; full identifier/call resolution is a later increment.
+
 ## Roadmap
 
 | Milestone | Scope |
 |-----------|-------|
 | **M0** ✅ | scaffold + `assertion-free-test` + pipeline + tests |
-| M1 | `hallucinated-symbol` resolution (TS program/type checker) |
+| **M1** ✅ | `hallucinated-symbol` — import resolution (nonexistent named exports & relative paths) |
 | M2 | PR-comment reporter as a GitHub Action |
 | M3 | claim-reconciliation: *added test*, *no public API change*, *no default flip* |
 | M4 | benchmark on the MSR'26 PR-MCI labeled set (≥95% CONTRADICTED precision, <2% false-positive) |
