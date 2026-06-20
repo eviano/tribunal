@@ -20,5 +20,11 @@ jobs:
       - run: npm run bench
       - run: npm run build
       # Ensure the committed action bundle is in sync with src/.
-      - run: npm run build:action
-      - run: git diff --exit-status -- action-dist/
+      - name: Verify action bundle is fresh
+        run: |
+          npm run build:action
+          if [ -n "$(git status --porcelain -- action-dist/)" ]; then
+            echo "::error::action-dist bundle is stale — run 'npm run build:action' and commit the result"
+            git --no-pager diff --stat -- action-dist/ || true
+            exit 1
+          fi
