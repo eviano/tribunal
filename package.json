@@ -1,0 +1,46 @@
+{
+  "name": "tribunal",
+  "version": "0.0.1",
+  "description": "A deterministic, no-LLM-in-the-loop CI gate that catches agent-PR defects: assertion-free tests, hallucinated symbols, and PR claims that contradict the diff.",
+  "type": "module",
+  "bin": {
+    "tribunal": "./dist/cli.js"
+  },
+  "exports": {
+    ".": "./dist/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "check": "tsx src/cli.ts"
+  },
+  "keywords": [
+    "ai",
+    "agents",
+    "code-review",
+    "ci",
+    "static-analysis",
+    "ast",
+    "pull-request",
+    "github-action"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "typescript": "^5.6.3"
+  },
+  "devDependencies": {
+    "@types/node": "^22.7.0",
+    "tsx": "^4.19.1",
+    "vitest": "^2.1.2"
+  }
+}
