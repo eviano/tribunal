@@ -1,0 +1,24 @@
+name: Tribunal
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  tribunal:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      # Dogfood: run this repo's own action against the PR. Consumers would use:
+      #   uses: eviano/tribunal@v1
+      - uses: ./
+        with:
+          base: ${{ github.event.pull_request.base.sha }}
+          head: ${{ github.event.pull_request.head.sha }}
+          hard-fail: 'false'
+          comment: 'true'
