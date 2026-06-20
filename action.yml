@@ -31,10 +31,7 @@ runs:
       with:
         node-version: '20'
 
-    - name: Build Tribunal
-      shell: bash
-      run: ( cd "$GITHUB_ACTION_PATH" && npm ci && npm run build )
-
+    # Runs the prebuilt, self-contained bundle (action-dist/cli.cjs) — no install or build at runtime.
     - name: Run Tribunal
       id: run
       shell: bash
@@ -54,7 +51,7 @@ runs:
           printf '%s' "$PR_BODY" > "$RUNNER_TEMP/pr-body.md"
           EXTRA+=(--pr-body "$RUNNER_TEMP/pr-body.md")
         fi
-        node "$GITHUB_ACTION_PATH/dist/cli.js" check "${EXTRA[@]}" --format md | tee "$RUNNER_TEMP/tribunal.md"
+        node "$GITHUB_ACTION_PATH/action-dist/cli.cjs" check "${EXTRA[@]}" --format md | tee "$RUNNER_TEMP/tribunal.md"
         echo "code=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
         {
           echo '### ⚖️ Tribunal'
