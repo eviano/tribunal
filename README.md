@@ -131,9 +131,11 @@ no-public-api-change
   no test at all; 🟡 UNVERIFIED if a test was added but its assertion can't be detected.
 - `no-public-api-change` → compares the exported-symbol set between base and head; 🔴 CONTRADICTED on any
   added/removed export, 🟡 UNVERIFIED when there's no base ref or a module re-exports via `export *`.
+- `no-default-flip` → compares literal default parameter values between base and head (scope to one with
+  `no-default-flip: paramName`); 🔴 CONTRADICTED when a default silently changed.
 
 Pass claims with `--claims <file>` (a claims file) or `--pr-body <file>` (reads only the fenced block).
-Adding a new claim is one entry in the verifier registry. `no-default-flip` is the next planned verifier.
+Adding a new claim is one entry in the verifier registry.
 
 ## Benchmark — the moat-proof
 
@@ -159,7 +161,7 @@ The public MSR'26 PR-MCI labeled set (974 PRs) plugs in alongside the seed corpu
 | **M0** ✅ | scaffold + `assertion-free-test` + pipeline + tests |
 | **M1** ✅ | `hallucinated-symbol` — import resolution (nonexistent named exports & relative paths) |
 | **M2** ✅ | PR-comment reporter as a GitHub Action |
-| **M3** ✅ | claim-reconciliation: `added-test`, `no-public-api-change` (pluggable verifier registry) |
+| **M3** ✅ | claim-reconciliation: `added-test`, `no-public-api-change`, `no-default-flip` (pluggable registry) |
 | **M4** ✅ | benchmark harness + adversarial seed corpus + CI guard (currently **0% false-positive**); MSR'26 PR-MCI set pluggable |
 
 ## License

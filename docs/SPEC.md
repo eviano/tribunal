@@ -104,7 +104,7 @@ degrades to `UNVERIFIED`, never a wrong `CONTRADICTED`.
 |-----------|------------------------|--------|
 | `added-test` | the diff adds a test; PASS if it has a reachable assertion, CONTRADICTED if no test block appears at all | ✅ **built (M3)** |
 | `no-public-api-change` | exported-symbol set is identical between base and head for changed source files | ✅ **built (M3)** |
-| `no-default-flip` | AST diff of default literals/params is empty | ▶ later |
+| `no-default-flip` | literal default parameter values are unchanged between base and head (optional `: paramName` scope) | ✅ **built** |
 | `docs-updated` | referenced symbols actually changed | ▶ later |
 
 Extraction is parsing, not NLU: claims come from a ```` ```tribunal ```` fenced block in the PR body
@@ -124,8 +124,8 @@ v1 targets **TS/JS only** — one toolchain that also analyzes Tribunal itself (
   relative paths, resolved with the target repo's own tsconfig. Full identifier/call resolution via the
   TS type checker is deferred (higher false-positive risk; demands the whole program).
 - **M2 — PR-comment reporter** as a GitHub Action (`npx tribunal check`), default-WARN.
-- **M3 — claim-reconciliation** ✅: `added-test` and `no-public-api-change`, behind a machine-readable
-  ```` ```tribunal ```` claims block; pluggable claim→verifier registry. `no-default-flip` deferred.
+- **M3 — claim-reconciliation** ✅: `added-test`, `no-public-api-change`, and `no-default-flip`, behind
+  a machine-readable ```` ```tribunal ```` claims block; pluggable claim→verifier registry.
 - **M4 — the benchmark** ✅ *(harness + seed corpus)*: a labeled-corpus harness, an adversarial seed
   corpus, and a CI guard that fails on any false `CONTRADICTED` (see §7 and `bench/`). The MSR'26
   PR-MCI labeled set plugs in via an adapter.

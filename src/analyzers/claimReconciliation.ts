@@ -1,6 +1,7 @@
 import type { Analyzer, AnalyzerContext, Claim, Finding, Verdict } from '../types.js';
 import { assertionFreeTest } from './assertionFreeTest.js';
 import { directExports, type DirectExports } from './exports.js';
+import { collectDefaultParams, keyMatchesArg } from './defaults.js';
 
 /**
  * `claim-reconciliation` — verifies machine-readable PR claims against what the diff actually did, with
@@ -117,6 +118,50 @@ function verifyNoPublicApiChange(ctx: AnalyzerContext): VerifierResult {
   };
 }
 
+/** "no default flip" → no literal default parameter value changed between base and head. */
+function verifyNoDefaultFlip(ctx: AnalyzerContext, claim: Claim): VerifierResult {
+  if (!ctx.base || !ctx.readBaseFile) {
+    return {
+      verdict: 'UNVERIFIED',
+      title: 'No base ref to compare defaults',
+      detail: 'Default-value changes need a base ref to diff against; none was available.',
+    };
+  }
+
+  const flips: string[] = [];
+  for (const f of ctx.changedFiles) {
+    if (!SOURCE_EXT_RE.test(f.path) || isTestPath(f.path)) continue;
+    const baseContent = ctx.readBaseFile(f.path);
+    const headContent = f.status === 'deleted' ? null : ctx.readFile(f.path);
+    if (baseContent == null || headContent == null) continue;
+
+    const baseDefaults = collectDefaultParams(baseContent, f.path);
+    const headDefaults = collectDefaultParams(headContent, f.path);
+    for (const [key, headVal] of headDefaults) {
+      if (!baseDefaults.has(key)) continue; // newly-added default is not a flip
+      const baseVal = baseDefaults.get(key)!;
+      if (baseVal === headVal) continue;
+      if (claim.arg && !keyMatchesArg(key, claim.arg)) continue;
+      flips.push(`${f.path} ${key} (${baseVal} → ${headVal})`);
+    }
+  }
+
+  if (flips.length) {
+    return {
+      verdict: 'CONTRADICTED',
+      title: 'Claimed no default flip, but a default changed',
+      detail: `Default values changed: ${flips.join(' | ')}.`,
+    };
+  }
+  return {
+    verdict: 'PASS',
+    title: 'Claim confirmed: no default flip',
+    detail: claim.arg
+      ? `No literal default for '${claim.arg}' changed in changed source files.`
+      : 'No literal default parameter values changed in changed source files.',
+  };
+}
+
 const verifiers: Record<string, Verifier> = {
   'added-test': verifyAddedTest,
   'added-tests': verifyAddedTest,
@@ -124,6 +169,9 @@ const verifiers: Record<string, Verifier> = {
   'no-public-api-change': verifyNoPublicApiChange,
   'no-api-change': verifyNoPublicApiChange,
   'no-public-api-changes': verifyNoPublicApiChange,
+  'no-default-flip': verifyNoDefaultFlip,
+  'no-default-change': verifyNoDefaultFlip,
+  'no-defaults-changed': verifyNoDefaultFlip,
 };
 
 export const recognizedClaims = Object.keys(verifiers);

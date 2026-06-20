@@ -110,6 +110,52 @@ describe('claim-reconciliation · no-public-api-change', () => {
   });
 });
 
+describe('claim-reconciliation · no-default-flip', () => {
+  it('CONTRADICTED when a literal default parameter value changed', () => {
+    const f = sole({
+      claims: [claim('no-default-flip')],
+      base: 'BASE',
+      changedFiles: [{ path: 'src/net.ts' }],
+      baseFiles: { 'src/net.ts': `export function connect(timeoutMs = 30) { return timeoutMs; }` },
+      files: { 'src/net.ts': `export function connect(timeoutMs = 5000) { return timeoutMs; }` },
+    });
+    expect(f.verdict).toBe('CONTRADICTED');
+    expect(f.detail).toContain('30 → 5000');
+  });
+
+  it('PASS when defaults are unchanged even if the body changed', () => {
+    const f = sole({
+      claims: [claim('no-default-flip')],
+      base: 'BASE',
+      changedFiles: [{ path: 'src/net.ts' }],
+      baseFiles: { 'src/net.ts': `export function connect(timeoutMs = 30) { return timeoutMs; }` },
+      files: { 'src/net.ts': `export function connect(timeoutMs = 30) { return timeoutMs + 1; }` },
+    });
+    expect(f.verdict).toBe('PASS');
+  });
+
+  it('UNVERIFIED with no base ref', () => {
+    const f = sole({
+      claims: [claim('no-default-flip')],
+      changedFiles: [{ path: 'src/net.ts' }],
+      files: { 'src/net.ts': `export function connect(timeoutMs = 30) { return timeoutMs; }` },
+    });
+    expect(f.verdict).toBe('UNVERIFIED');
+  });
+
+  it('argument scopes the check to one parameter', () => {
+    const spec = {
+      base: 'BASE',
+      changedFiles: [{ path: 'src/f.ts' }],
+      baseFiles: { 'src/f.ts': `export function f(a = 1, b = 2) { return a + b; }` },
+      files: { 'src/f.ts': `export function f(a = 1, b = 3) { return a + b; }` },
+    };
+    // Only `b` flipped; scoping to `a` passes, scoping to `b` contradicts.
+    expect(sole({ ...spec, claims: [{ key: 'no-default-flip', arg: 'a', raw: 'no-default-flip: a' }] }).verdict).toBe('PASS');
+    expect(sole({ ...spec, claims: [{ key: 'no-default-flip', arg: 'b', raw: 'no-default-flip: b' }] }).verdict).toBe('CONTRADICTED');
+  });
+});
+
 describe('claim-reconciliation · unknown claims never block', () => {
   it('UNVERIFIED for an unrecognized claim', () => {
     const f = sole({

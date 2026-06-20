@@ -93,6 +93,17 @@ export const cases: BenchCase[] = [
     ],
   },
 
+  {
+    id: 'D10-default-flip',
+    label: 'defect',
+    description: 'Claims "no-default-flip" but silently changes a default timeout.',
+    files: { 'src/net.ts': `export function connect(timeoutMs = 5000) { return timeoutMs; }\n` },
+    baseFiles: { 'src/net.ts': `export function connect(timeoutMs = 30) { return timeoutMs; }\n` },
+    base: 'BASE',
+    changed: [{ path: 'src/net.ts' }],
+    claims: ['no-default-flip'],
+  },
+
   // ───────────────────────── clean (must NOT emit CONTRADICTED) ─────────────────────────
   {
     id: 'C1-expect-test',
@@ -162,5 +173,15 @@ export const cases: BenchCase[] = [
     },
     changed: [{ path: 'feature.test.ts', status: 'added' }],
     claims: ['added-test'],
+  },
+  {
+    id: 'C8-default-unchanged',
+    label: 'clean',
+    description: 'Claims "no-default-flip"; the body changed but the default did not.',
+    files: { 'src/net.ts': `export function connect(timeoutMs = 30) { return timeoutMs + 1; }\n` },
+    baseFiles: { 'src/net.ts': `export function connect(timeoutMs = 30) { return timeoutMs; }\n` },
+    base: 'BASE',
+    changed: [{ path: 'src/net.ts' }],
+    claims: ['no-default-flip'],
   },
 ];
