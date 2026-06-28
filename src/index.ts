@@ -9,7 +9,7 @@ import { buildReport } from './report/render.js';
 import type { Analyzer, AnalyzerContext, Report } from './types.js';
 
 export type { Analyzer, AnalyzerContext, ChangedFile, Claim, Finding, Report, Verdict } from './types.js';
-export { analyzers, assertionFreeTest, hallucinatedSymbol, claimReconciliation } from './analyzers/index.js';
+export { analyzers, assertionFreeTest, hallucinatedSymbol, riskyDiffNoTest, claimReconciliation } from './analyzers/index.js';
 export { recognizedClaims } from './analyzers/claimReconciliation.js';
 export { parseClaims, type ParseClaimsOptions } from './claims.js';
 export { parseUnifiedDiff } from './diff/parseUnifiedDiff.js';
