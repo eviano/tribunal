@@ -1,6 +1,6 @@
 {
   "name": "@eviano/tribunal",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "description": "A deterministic, no-LLM-in-the-loop CI gate that catches agent-PR defects: assertion-free tests, hallucinated symbols, and PR claims that contradict the diff.",
   "type": "module",
   "bin": {
