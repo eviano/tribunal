@@ -105,3 +105,26 @@ describe('hallucinated-symbol · scoping', () => {
     expect(analyze('c-untouched.ts', `import { nope } from './lib';\nconst y = 1;`, [2])).toHaveLength(0);
   });
 });
+
+describe('hallucinated-symbol · Node.js built-ins are never flagged', () => {
+  // Built-ins are environment-provided and always resolvable at runtime; flagging them is pure noise
+  // (it fires whenever the repo has no node_modules on the runner). They produce NO finding.
+  it.each([
+    'node:fs',
+    'node:crypto',
+    'node:path',
+    'node:child_process',
+    'node:os',
+    'fs', // legacy bare form
+    'path',
+    'crypto',
+  ])('no finding for import from %s', (spec) => {
+    expect(analyze(`c-${spec.replace(/[^a-z]/gi, '')}.ts`, `import { x } from '${spec}';`)).toHaveLength(0);
+  });
+
+  it('a non-builtin package is STILL flagged UNVERIFIED when unresolved', () => {
+    const f = sole('c-stillpkg.ts', `import { z } from 'totally-missing-pkg';`);
+    expect(f.verdict).toBe('UNVERIFIED');
+    expect(f.title).toBe('Unresolved package import');
+  });
+});
