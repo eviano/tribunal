@@ -6,6 +6,7 @@ import { parseClaims } from './claims.js';
 import type { Claim } from './types.js';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { runPropose, type ProposeProvider } from './propose.js';
+import { renderSarif } from './report/render.js';
 
 interface CliOptions {
   command: string;
@@ -25,7 +26,7 @@ interface CliOptions {
   outFile?: string;
   // shared
   cwd: string;
-  format: 'md' | 'json';
+  format: 'md' | 'json' | 'sarif';
   hardFail: boolean;
 }
 
@@ -42,7 +43,7 @@ check — options:
   --claims <file>  Read machine-readable claims from a file (whole file, or a tribunal fenced block).
   --pr-body <file> Read claims ONLY from a \`\`\`tribunal fenced block in a PR-body file.
   --cwd <dir>      Repo root to run in (default: current directory).
-  --format <fmt>   Output format: md (default) or json.
+  --format <fmt>   Output format: md (default), json, or sarif (upload via github/codeql-action/upload-sarif).
   --hard-fail      Exit non-zero when there is at least one CONTRADICTED finding.
                    Off by default (report-only). Gates ONLY on CONTRADICTED.
 
@@ -122,8 +123,8 @@ function parseArgs(argv: string[]): CliOptions {
         break;
       case '--format': {
         const f = rest.shift();
-        if (f === 'md' || f === 'json') opts.format = f;
-        else throw new Error(`Unknown format: ${f} (expected md or json)`);
+        if (f === 'md' || f === 'json' || f === 'sarif') opts.format = f;
+        else throw new Error(`Unknown format: ${f} (expected md, json, or sarif)`);
         break;
       }
       case '--hard-fail':
@@ -204,7 +205,10 @@ function runCheckCmd(opts: CliOptions): void {
     process.exit(2);
   }
 
-  const out = opts.format === 'json' ? renderJson(report) : renderMarkdown(report, opts.hardFail);
+  let out: string;
+  if (opts.format === 'json') out = renderJson(report);
+  else if (opts.format === 'sarif') out = renderSarif(report);
+  else out = renderMarkdown(report, opts.hardFail);
   process.stdout.write(`${out}\n`);
   process.exit(exitCode(report, opts.hardFail));
 }
