@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { runTribunal } from './index.js';
+import { runTribunal, analyzers as defaultAnalyzers } from './index.js';
 import { exitCode, renderJson, renderMarkdown } from './report/render.js';
 import type { DiffSource } from './diff/gitDiff.js';
 import { parseClaims } from './claims.js';
@@ -7,7 +7,11 @@ import type { Claim } from './types.js';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { runPropose, type ProposeProvider } from './propose.js';
 import { renderSarif } from './report/render.js';
-import { setSkipGenerated } from './analyzers/riskyDiffNoTest.js';
+import { setSkipGenerated, setExtraGeneratedPaths } from './analyzers/riskyDiffNoTest.js';
+import { loadConfig, setKnownAnalyzerIds } from './config/loadConfig.js';
+
+// Register the known analyzer ids so loadConfig can validate `analyzers:` keys (fail-loud on typos).
+setKnownAnalyzerIds(defaultAnalyzers.map((a) => a.id));
 
 interface CliOptions {
   command: string;
@@ -30,6 +34,7 @@ interface CliOptions {
   format: 'md' | 'json' | 'sarif';
   hardFail: boolean;
   noSkipGenerated: boolean;
+  configFile?: string;
 }
 
 const HELP = `tribunal — a deterministic, no-LLM CI gate for agent-authored PRs
@@ -50,6 +55,8 @@ check — options:
                    Off by default (report-only). Gates ONLY on CONTRADICTED.
   --no-skip-generated  Don't skip generated/build-output paths in risky-diff-no-test
                    (dist/, *.min.js, …). Default skips them; this re-enables flagging them.
+  --config <file>  Path to tribunal.yml (default: <repo-root>/tribunal.yml). Configures per-analyzer
+                   enable/disable and extra generated-path patterns. Absent = all defaults.
 
 propose — options:
   --diff <file>      Diff to propose claims for (required for propose).
@@ -138,6 +145,9 @@ function parseArgs(argv: string[]): CliOptions {
       case '--no-skip-generated':
         opts.noSkipGenerated = true;
         break;
+      case '--config':
+        opts.configFile = rest.shift();
+        break;
       default:
         if (!a.startsWith('-') && !opts.command) opts.command = a;
         else throw new Error(`Unknown argument: ${a}`);
@@ -203,6 +213,26 @@ function runCheckCmd(opts: CliOptions): void {
     setSkipGenerated(false);
   }
 
+  // Load tribunal.yml (auto-discovered at repo root, or --config / TRIBUNAL_CONFIG). Absent = all
+  // defaults, no behavior change. Present-but-malformed fails loud. Applied: extra generated-paths are
+  // appended to the built-ins (extend-defaults); analyzers: false disables that analyzer.
+  let analyzerOverride;
+  try {
+    const config = loadConfig(opts.cwd, opts.configFile);
+    if (config) {
+      if (config.generatedPaths && config.generatedPaths.length) {
+        setExtraGeneratedPaths(config.generatedPaths);
+      }
+      if (config.analyzers) {
+        const disabled = Object.entries(config.analyzers).filter(([, v]) => v === false).map(([k]) => k);
+        if (disabled.length) analyzerOverride = defaultAnalyzers.filter((a) => !disabled.includes(a.id));
+      }
+    }
+  } catch (err) {
+    process.stderr.write(`tribunal: ${(err as Error).message}\n`);
+    process.exit(2);
+  }
+
   let claims: Claim[] | undefined;
   if (opts.claimsFile) claims = parseClaims(readFileSync(opts.claimsFile, 'utf8'));
   else if (opts.prBodyFile) claims = parseClaims(readFileSync(opts.prBodyFile, 'utf8'), { requireFence: true });
@@ -217,7 +247,7 @@ function runCheckCmd(opts: CliOptions): void {
 
   let report;
   try {
-    report = runTribunal(src);
+    report = runTribunal(src, analyzerOverride ? { analyzers: analyzerOverride } : {});
   } catch (err) {
     process.stderr.write(`tribunal: ${(err as Error).message}\n`);
     process.exit(2);

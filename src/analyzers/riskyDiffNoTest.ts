@@ -131,14 +131,15 @@ interface RiskyHit {
 }
 
 /** Find risky source files touched by the diff (path segment OR a changed-line identifier token). */
-function findRiskyHits(ctx: AnalyzerContext, skipGenerated: boolean): RiskyHit[] {
+function findRiskyHits(ctx: AnalyzerContext, skipGenerated: boolean, extras: readonly string[]): RiskyHit[] {
   const hits: RiskyHit[] = [];
   for (const f of ctx.changedFiles) {
     if (f.status === 'deleted' || isTestPath(f.path)) continue;
     if (!SOURCE_EXT_RE.test(f.path)) continue;
-    // Skip generated/build output (dist/, *.min.js, …): a bundled artifact carries the project's own
-    // risky vocab and isn't human-authored source worth flagging. Disable via `skipGenerated = false`.
-    if (skipGenerated && isGeneratedPath(f.path)) continue;
+    // Skip generated/build output (dist/, *.min.js, …, plus any config-supplied extras): a bundled
+    // artifact carries the project's own risky vocab and isn't human-authored source worth flagging.
+    // Disable via `skipGenerated = false`.
+    if (skipGenerated && isGeneratedPath(f.path, extras)) continue;
 
     // 1) Path-segment match (cheap, no parse). Line = first added line if any, else 1.
     if (touchesRiskyVocab(f.path)) {
@@ -182,14 +183,21 @@ let ctxHolder: AnalyzerContext;
 
 /**
  * Module-level config for the generated-path skip. Mutable so the CLI can flip it
- * (`--no-skip-generated` / `TRIBUNAL_NO_SKIP_GENERATED=1`). Default: skip generated paths.
- * (The `Analyzer.run` method is invoked detached, so a `this`-bound flag is unreliable; a module-level
- * flag mirrors the existing `ctxHolder` pattern.)
+ * (`--no-skip-generated` / `TRIBUNAL_NO_SKIP_GENERATED=1`) and supply extra generated-path patterns
+ * (from tribunal.yml). Default: skip generated paths, no extras.
+ * (The `Analyzer.run` method is invoked detached, so a `this`-bound flag is unreliable; module-level
+ * state mirrors the existing `ctxHolder` pattern.)
  */
 export let skipGenerated = true;
+/** Extra generated-path patterns (appended to the built-ins). */
+export let extraGeneratedPaths: readonly string[] = [];
 /** Override the generated-path skip behavior (CLI/env use). */
 export function setSkipGenerated(value: boolean): void {
   skipGenerated = value;
+}
+/** Set extra generated-path patterns (config use). Appended to the built-ins, never replaces them. */
+export function setExtraGeneratedPaths(paths: readonly string[]): void {
+  extraGeneratedPaths = paths;
 }
 
 export const riskyDiffNoTest: Analyzer = {
@@ -201,7 +209,7 @@ export const riskyDiffNoTest: Analyzer = {
   kind: 'claim-independent',
   run(ctx: AnalyzerContext): Finding[] {
     ctxHolder = ctx;
-    const hits = findRiskyHits(ctx, skipGenerated);
+    const hits = findRiskyHits(ctx, skipGenerated, extraGeneratedPaths);
     const findings: Finding[] = [];
 
     for (const hit of hits) {
