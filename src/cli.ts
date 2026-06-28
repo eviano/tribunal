@@ -4,15 +4,26 @@ import { exitCode, renderJson, renderMarkdown } from './report/render.js';
 import type { DiffSource } from './diff/gitDiff.js';
 import { parseClaims } from './claims.js';
 import type { Claim } from './types.js';
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
+import { runPropose, type ProposeProvider } from './propose.js';
 
 interface CliOptions {
   command: string;
+  // check + propose (shared diff source)
   base?: string;
   head?: string;
   diffFile?: string;
+  // check-only
   claimsFile?: string;
   prBodyFile?: string;
+  // propose-only
+  proposePrBodyFile?: string;
+  endpoint?: string;
+  model?: string;
+  apiKey?: string;
+  allowSendDiff: boolean;
+  outFile?: string;
+  // shared
   cwd: string;
   format: 'md' | 'json';
   hardFail: boolean;
@@ -21,9 +32,10 @@ interface CliOptions {
 const HELP = `tribunal — a deterministic, no-LLM CI gate for agent-authored PRs
 
 Usage:
-  tribunal check [options]
+  tribunal check [options]        Deterministically verify a PR (default).
+  tribunal propose [options]      Ask an LLM to PROPOSE claims; never adjudicates.
 
-Options:
+check — options:
   --base <ref>     Base ref for a range diff (e.g. the PR base branch).
   --head <ref>     Head ref for a range diff. Defaults to working tree vs HEAD.
   --diff <file>    Read a unified diff from a file instead of invoking git.
@@ -33,14 +45,37 @@ Options:
   --format <fmt>   Output format: md (default) or json.
   --hard-fail      Exit non-zero when there is at least one CONTRADICTED finding.
                    Off by default (report-only). Gates ONLY on CONTRADICTED.
-  -h, --help       Show this help.
+
+propose — options:
+  --diff <file>      Diff to propose claims for (required for propose).
+  --pr-body <file>   Optional PR body to give the model extra context.
+  --endpoint <url>   OpenAI-compatible chat-completions base URL (env: TRIBUNAL_ENDPOINT).
+  --model <name>     Model name (env: TRIBUNAL_MODEL).
+  --api-key <key>    Bearer token (env: TRIBUNAL_API_KEY).
+  --allow-send-diff  Actually send the diff to the endpoint. WITHOUT this flag, propose prints the
+                     prompt and sends NOTHING (the diff is source code — review before publishing).
+                     Also set via TRIBUNAL_ALLOW_SEND_DIFF=1.
+  --out <file>       Write the claims block to a file (default: stdout).
+  --cwd <dir>        Repo root (default: current directory).
+
+  The propose → check loop:
+    tribunal propose --diff pr.diff --allow-send-diff --out claims.md
+    tribunal check   --diff pr.diff --pr-body claims.md
 
 Tribunal gates only on CONTRADICTED (a syntactic certainty). UNVERIFIED never blocks,
-and no LLM is in the verification path.
+and no LLM is in the verification path. propose only suggests claims for check to verify.
+
+  -h, --help       Show this help.
 `;
 
 function parseArgs(argv: string[]): CliOptions {
-  const opts: CliOptions = { command: '', cwd: process.cwd(), format: 'md', hardFail: false };
+  const opts: CliOptions = {
+    command: '',
+    cwd: process.cwd(),
+    format: 'md',
+    hardFail: false,
+    allowSendDiff: false,
+  };
   const rest = [...argv];
   while (rest.length) {
     const a = rest.shift()!;
@@ -62,7 +97,25 @@ function parseArgs(argv: string[]): CliOptions {
         opts.claimsFile = rest.shift();
         break;
       case '--pr-body':
+        // In `propose`, --pr-body is context for the model; in `check`, it's a fenced claims source.
+        // We resolve which meaning applies at dispatch time; stash the path on both fields.
         opts.prBodyFile = rest.shift();
+        opts.proposePrBodyFile = opts.prBodyFile;
+        break;
+      case '--endpoint':
+        opts.endpoint = rest.shift();
+        break;
+      case '--model':
+        opts.model = rest.shift();
+        break;
+      case '--api-key':
+        opts.apiKey = rest.shift();
+        break;
+      case '--allow-send-diff':
+        opts.allowSendDiff = true;
+        break;
+      case '--out':
+        opts.outFile = rest.shift();
         break;
       case '--cwd':
         opts.cwd = rest.shift() ?? opts.cwd;
@@ -84,24 +137,53 @@ function parseArgs(argv: string[]): CliOptions {
   return opts;
 }
 
-function main(): void {
-  let opts: CliOptions;
-  try {
-    opts = parseArgs(process.argv.slice(2));
-  } catch (err) {
-    process.stderr.write(`${(err as Error).message}\n\n${HELP}`);
-    process.exit(2);
+/** Resolve the propose provider config from flags, then env, failing loudly if incomplete. */
+function resolveProvider(opts: CliOptions): ProposeProvider {
+  const endpoint = opts.endpoint ?? process.env.TRIBUNAL_ENDPOINT;
+  const model = opts.model ?? process.env.TRIBUNAL_MODEL;
+  const apiKey = opts.apiKey ?? process.env.TRIBUNAL_API_KEY;
+  if (!endpoint) {
+    throw new Error(
+      'propose: no endpoint. Pass --endpoint <url> or set TRIBUNAL_ENDPOINT ' +
+        '(an OpenAI-compatible chat-completions base URL).',
+    );
   }
+  if (!model) {
+    throw new Error('propose: no model. Pass --model <name> or set TRIBUNAL_MODEL.');
+  }
+  return { endpoint, model, apiKey };
+}
 
-  if (opts.command === 'help' || opts.command === '') {
-    process.stdout.write(HELP);
-    process.exit(0);
+async function runProposeCmd(opts: CliOptions): Promise<void> {
+  if (!opts.diffFile) {
+    throw new Error('propose: --diff <file> is required (the diff to propose claims for).');
   }
-  if (opts.command !== 'check') {
-    process.stderr.write(`Unknown command: ${opts.command}\n\n${HELP}`);
-    process.exit(2);
-  }
+  const diff = readFileSync(opts.diffFile, 'utf8');
+  const prBody = opts.proposePrBodyFile ? readFileSync(opts.proposePrBodyFile, 'utf8') : undefined;
 
+  const allowSendDiff =
+    opts.allowSendDiff || process.env.TRIBUNAL_ALLOW_SEND_DIFF === '1' ||
+    process.env.TRIBUNAL_ALLOW_SEND_DIFF === 'true';
+
+  const provider = resolveProvider(opts);
+  const result = await runPropose({ diff, prBody, provider, allowSendDiff });
+
+  if (opts.outFile) {
+    writeFileSync(opts.outFile, `${result.block}\n`);
+    process.stderr.write(
+      result.sent
+        ? `propose: wrote ${result.claims.length} candidate claim(s) to ${opts.outFile}\n`
+        : `propose: send-guard withheld the request; wrote an empty block to ${opts.outFile}\n`,
+    );
+  } else if (result.sent) {
+    // When the prompt was already printed by the send-guard path, avoid duplicating it; only print the
+    // block when we actually sent and got a response.
+    process.stdout.write(`${result.block}\n`);
+  }
+  process.exit(0);
+}
+
+function runCheckCmd(opts: CliOptions): void {
   let claims: Claim[] | undefined;
   if (opts.claimsFile) claims = parseClaims(readFileSync(opts.claimsFile, 'utf8'));
   else if (opts.prBodyFile) claims = parseClaims(readFileSync(opts.prBodyFile, 'utf8'), { requireFence: true });
@@ -125,6 +207,36 @@ function main(): void {
   const out = opts.format === 'json' ? renderJson(report) : renderMarkdown(report, opts.hardFail);
   process.stdout.write(`${out}\n`);
   process.exit(exitCode(report, opts.hardFail));
+}
+
+async function main(): Promise<void> {
+  let opts: CliOptions;
+  try {
+    opts = parseArgs(process.argv.slice(2));
+  } catch (err) {
+    process.stderr.write(`${(err as Error).message}\n\n${HELP}`);
+    process.exit(2);
+  }
+
+  if (opts.command === 'help' || opts.command === '') {
+    process.stdout.write(HELP);
+    process.exit(0);
+  }
+  if (opts.command === 'propose') {
+    try {
+      await runProposeCmd(opts);
+    } catch (err) {
+      process.stderr.write(`tribunal: ${(err as Error).message}\n`);
+      process.exit(2);
+    }
+    return;
+  }
+  if (opts.command !== 'check') {
+    process.stderr.write(`Unknown command: ${opts.command}\n\n${HELP}`);
+    process.exit(2);
+  }
+
+  runCheckCmd(opts);
 }
 
 main();

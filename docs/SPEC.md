@@ -38,6 +38,10 @@ These are load-bearing. Every analyzer and every line of the gate logic must obe
 
 1. **Zero LLM in the verification path.** A model may *propose* a claim to check; a model may never
    *adjudicate* whether a check passed. The thing that flips a build red is always deterministic code.
+   _(Realized concretely by `tribunal propose`, a separate subcommand that emits a ```` ```tribunal ````
+   claims block for the deterministic `tribunal check` to adjudicate. `propose` never imports a verifier,
+   and any unrecognized key it emits degrades to `UNVERIFIED` — so the LLM path cannot manufacture a
+   `CONTRADICTED` no matter what it returns.)_
 2. **Three verdicts, always:** `PASS` · `UNVERIFIED` · `CONTRADICTED`.
 3. **Gate ONLY on `CONTRADICTED`.** The absence of `CONTRADICTED` never blocks. `UNVERIFIED` is loud
    but non-blocking. This is the fails-safe guarantee.

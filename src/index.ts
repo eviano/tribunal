@@ -12,6 +12,17 @@ export type { Analyzer, AnalyzerContext, ChangedFile, Claim, Finding, Report, Ve
 export { analyzers, assertionFreeTest, hallucinatedSymbol, riskyDiffNoTest, claimReconciliation } from './analyzers/index.js';
 export { recognizedClaims } from './analyzers/claimReconciliation.js';
 export { parseClaims, type ParseClaimsOptions } from './claims.js';
+export {
+  buildPrompt,
+  extractClaimsFromResponse,
+  renderClaimsBlock,
+  runPropose,
+  PROPOSABLE_CLAIMS,
+  type ProposeProvider,
+  type FetchLike,
+  type RunProposeOptions,
+  type RunProposeResult,
+} from './propose.js';
 export { parseUnifiedDiff } from './diff/parseUnifiedDiff.js';
 export { getChangedFiles, makeContext, type DiffSource } from './diff/gitDiff.js';
 export { buildReport, exitCode, renderJson, renderMarkdown } from './report/render.js';

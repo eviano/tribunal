@@ -162,6 +162,46 @@ no-public-api-change
 Pass claims with `--claims <file>` (a claims file) or `--pr-body <file>` (reads only the fenced block).
 Adding a new claim is one entry in the verifier registry.
 
+## `tribunal propose` — let an LLM PROPOSE claims (it never adjudicates)
+
+No agent emits the ` ```tribunal ` convention today, so `claim-reconciliation` (above) does nothing on a
+normal agent PR. `propose` closes that gap: it asks an LLM to *suggest* which claims a reviewer should
+ask the deterministic engine to check, then writes a ` ```tribunal ` block that `check` consumes.
+
+This is the narrow, Trust-Contract-compliant use of an LLM: it **proposes**; deterministic code
+**adjudicates**. The LLM is never in the verification path.
+
+**The two-step loop:**
+
+```bash
+# 1) propose — the LLM reads the diff and suggests claims (writes claims.md)
+tribunal propose --diff pr.diff \
+  --endpoint https://api.openai.com/v1 --model gpt-4o-mini \
+  --allow-send-diff --out claims.md
+
+# 2) check — deterministic engine verifies the proposed claims against the diff
+tribunal check --diff pr.diff --pr-body claims.md --hard-fail
+```
+
+`propose` is pluggable: point `--endpoint` at any OpenAI-compatible chat-completions URL (OpenAI,
+OpenRouter, a local Ollama / LM Studio server). Configure via flags or `TRIBUNAL_ENDPOINT` /
+`TRIBUNAL_MODEL` / `TRIBUNAL_API_KEY`.
+
+**The send-guard.** The diff is your source code, and sending it to an LLM endpoint is an outward-facing
+publish. So `propose` **refuses to send by default** — without `--allow-send-diff` it prints the prompt
+for review and sends *nothing*. Add the flag (or `TRIBUNAL_ALLOW_SEND_DIFF=1`) only when you've chosen
+the endpoint and accept that the diff leaves the machine.
+
+**Why this can't break the gate.** Two architectural guarantees hold even if the model hallucinates or is
+prompt-injected:
+
+1. `propose` is a separate command and code path. It never imports or calls any verifier, `runTribunal`,
+   or `exitCode`. It only reads a diff and writes a claims block.
+2. The model can only ever emit claim *keys*. Keys outside the recognized set are downgraded to
+   🟡 UNVERIFIED by the verifier registry — never 🔴 CONTRADICTED. Since `--hard-fail` gates only on
+   CONTRADICTED, **the LLM path cannot manufacture a false red**, no matter what it returns. (A *legitimate*
+   CONTRADICTED can still appear — that's the deterministic checker doing its job, which is the point.)
+
 ## Benchmark — the moat-proof
 
 Tribunal is only safe as a hard-fail gate if it almost never false-fires. That's measured, not
