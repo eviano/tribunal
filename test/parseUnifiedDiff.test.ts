@@ -70,4 +70,35 @@ new file mode 100644
     const files = parseUnifiedDiff(diff);
     expect(files.map((f) => f.path)).toEqual(['a.ts', 'b.ts']);
   });
+
+  // A plain unified diff (no `diff --git` header) — e.g. from `diff -u`, `git format-patch` body, or a
+  // hand-written patch. Previously this parsed to [] (silent drop); it must produce the file record.
+  it('parses a plain unified diff with no diff --git header', () => {
+    const diff = `--- a/foo.ts
++++ b/foo.ts
+@@ -1,2 +1,3 @@
+ export const a = 1;
++export const b = 2;
+`;
+    const files = parseUnifiedDiff(diff);
+    expect(files).toHaveLength(1);
+    expect(files[0].path).toBe('foo.ts');
+    expect(files[0].status).toBe('modified');
+    expect([...files[0].addedLines].sort((a, b) => a - b)).toEqual([2]);
+  });
+
+  it('parses multiple files in a plain unified diff', () => {
+    const diff = `--- a/a.ts
++++ b/a.ts
+@@ -1 +1 @@
+-x
++y
+--- a/b.ts
++++ b/b.ts
+@@ -0,0 +1,1 @@
++z`;
+    const files = parseUnifiedDiff(diff);
+    expect(files.map((f) => f.path)).toEqual(['a.ts', 'b.ts']);
+    expect(files[1].addedLines.size).toBe(1);
+  });
 });
