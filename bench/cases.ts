@@ -15,6 +15,11 @@ import type { BenchCase } from './harness.js';
  * NOTE on generated-path skipping: no corpus case uses a generated/build-output path (dist/, *.min.js,
  * …), so `risky-diff-no-test`'s generated-path skip (src/paths.ts) is a no-op on this corpus — the
  * 20/20 result is unaffected. The skip is verified by unit tests instead.
+ *
+ * NOTE on `comment-code-drift`: like `risky-diff-no-test` it is UNVERIFIED-only (never CONTRADICTED),
+ * so it has no corpus entries and cannot change a case's TP/TN/FP/FN outcome. It also requires a base
+ * ref to compare against, which the corpus's `BASE`-suffixed cases do provide, but its behavior is
+ * covered by unit tests instead (test/commentCodeDrift.test.ts).
  */
 export const cases: BenchCase[] = [
   // ───────────────────────── defects (expect ≥1 CONTRADICTED) ─────────────────────────

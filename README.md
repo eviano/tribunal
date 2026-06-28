@@ -218,6 +218,28 @@ noisy. This analyzer **skips generated/build-output paths by default** (`dist/`,
 Pass `--no-skip-generated` (or set `TRIBUNAL_NO_SKIP_GENERATED=1`) to re-enable flagging them — an
 opinionated default must never silently suppress a file you want checked.
 
+## `comment-code-drift`
+
+A **signal** analyzer (never a gate) that flags a comment/docstring which references a symbol whose
+**definition changed** in the diff (body edit, rename, or removal), where the comment itself wasn't
+freshly added. Catches the classic agent failure: it edits a function's behavior or renames it, but
+leaves the docstring describing the old behavior/name.
+
+```ts
+// src/greet.ts
+// greet: returns a friendly greeting        ← pre-existing comment (not added this PR)
+export function greet() { return 'hello'; }  // ← body changed 'hi' → 'hello'
+// → 🟡 UNVERIFIED: comment mentions 'greet', whose definition changed. Verify the wording is accurate.
+```
+
+- 🟡 **UNVERIFIED** — a comment (in the changed file **or** another changed file) mentions a changed
+  symbol by its **exact identifier token**, and the comment line was **not added** in this diff (a
+  freshly-added comment is unlikely stale — the key false-positive cut).
+- It only fires when a **base ref** is available (it compares base vs head ASTs to find changed
+  declarations). With no base ref, it's silent.
+- Like the other signal analyzers it **never blocks**: comment staleness is semantic, so it emits
+  PASS/UNVERIFIED only and is safe under `--hard-fail`.
+
 ## What M3 adds: `claim-reconciliation`
 
 Verifies the agent's **own claims** against the diff — deterministically. Claims are declared in a
