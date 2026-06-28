@@ -186,6 +186,13 @@ It tokenizes (camelCase / kebab / snake) and matches on whole tokens, not substr
 and `tokenize.ts` are correctly *not* flagged. Because it can only ever emit PASS/UNVERIFIED, it is safe
 to run under `--hard-fail`.
 
+**Generated-path skip.** A bundled artifact (e.g. `action-dist/cli.cjs`, `dist/*.min.js`) carries the
+project's own risky vocab but isn't human-authored source a reviewer can act on, so flagging it is
+noisy. This analyzer **skips generated/build-output paths by default** (`dist/`, `action-dist/`,
+`build/`, `out/`, `.next/`, `coverage/`, `node_modules/`, and `*.min.{js,cjs,mjs}` / `*.bundle.js`).
+Pass `--no-skip-generated` (or set `TRIBUNAL_NO_SKIP_GENERATED=1`) to re-enable flagging them — an
+opinionated default must never silently suppress a file you want checked.
+
 ## What M3 adds: `claim-reconciliation`
 
 Verifies the agent's **own claims** against the diff — deterministically. Claims are declared in a

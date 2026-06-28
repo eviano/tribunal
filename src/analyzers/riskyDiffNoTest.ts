@@ -1,6 +1,7 @@
 import ts from 'typescript';
 import type { Analyzer, AnalyzerContext, ChangedFile, Finding } from '../types.js';
 import { assertionFreeTest } from './assertionFreeTest.js';
+import { isGeneratedPath } from '../paths.js';
 
 /**
  * `risky-diff-no-test` — a claim-independent *signal* analyzer that implements SPEC §3.7:
@@ -130,11 +131,14 @@ interface RiskyHit {
 }
 
 /** Find risky source files touched by the diff (path segment OR a changed-line identifier token). */
-function findRiskyHits(ctx: AnalyzerContext): RiskyHit[] {
+function findRiskyHits(ctx: AnalyzerContext, skipGenerated: boolean): RiskyHit[] {
   const hits: RiskyHit[] = [];
   for (const f of ctx.changedFiles) {
     if (f.status === 'deleted' || isTestPath(f.path)) continue;
     if (!SOURCE_EXT_RE.test(f.path)) continue;
+    // Skip generated/build output (dist/, *.min.js, …): a bundled artifact carries the project's own
+    // risky vocab and isn't human-authored source worth flagging. Disable via `skipGenerated = false`.
+    if (skipGenerated && isGeneratedPath(f.path)) continue;
 
     // 1) Path-segment match (cheap, no parse). Line = first added line if any, else 1.
     if (touchesRiskyVocab(f.path)) {
@@ -176,6 +180,18 @@ function hasCorrelatedAssertingTest(risky: RiskyHit): boolean {
 // correlation helper is called per-hit and we don't want to thread ctx through every helper.
 let ctxHolder: AnalyzerContext;
 
+/**
+ * Module-level config for the generated-path skip. Mutable so the CLI can flip it
+ * (`--no-skip-generated` / `TRIBUNAL_NO_SKIP_GENERATED=1`). Default: skip generated paths.
+ * (The `Analyzer.run` method is invoked detached, so a `this`-bound flag is unreliable; a module-level
+ * flag mirrors the existing `ctxHolder` pattern.)
+ */
+export let skipGenerated = true;
+/** Override the generated-path skip behavior (CLI/env use). */
+export function setSkipGenerated(value: boolean): void {
+  skipGenerated = value;
+}
+
 export const riskyDiffNoTest: Analyzer = {
   id: 'risky-diff-no-test',
   title: 'Risky change without a correlated test',
@@ -185,7 +201,7 @@ export const riskyDiffNoTest: Analyzer = {
   kind: 'claim-independent',
   run(ctx: AnalyzerContext): Finding[] {
     ctxHolder = ctx;
-    const hits = findRiskyHits(ctx);
+    const hits = findRiskyHits(ctx, skipGenerated);
     const findings: Finding[] = [];
 
     for (const hit of hits) {
