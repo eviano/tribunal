@@ -128,6 +128,31 @@ jobs:
 SARIF is data, never a gate — the `--hard-fail` exit code still comes from `exitCode()`. You can run
 both: post the markdown comment (via the action) **and** upload SARIF in the same job.
 
+## Configuration (`tribunal.yml`)
+
+Optionally configure Tribunal with a `tribunal.yml` at the repo root (override the path with `--config
+<file>` or `TRIBUNAL_CONFIG`). With **no** file, all defaults apply — config is purely additive.
+
+```yaml
+# tribunal.yml
+analyzers:
+  risky-diff-no-test: false      # disable an analyzer (default: all enabled)
+generated-paths:                 # EXTRA generated paths, appended to the built-ins
+  - vendor-generated/
+  - "**/*.gen.ts"
+```
+
+- **`analyzers`** — a map of analyzer id → boolean. Default: every analyzer enabled. Disabling
+  `claim-reconciliation` just stops claim checks; claim-independent analyzers still run. **Unknown ids are
+  rejected** (typo guard): a misspelled key fails loud rather than silently no-op'ing.
+- **`generated-paths`** — extra generated/build-output patterns, **appended** to the built-ins
+  (`dist/`, `action-dist/`, `*.min.js`, …). Config can only *add* coverage — never replace — so a user
+  can't accidentally drop the `dist/` safety net. Patterns may be dir-prefixes (`vendor-generated/`),
+  suffixes (`.gen.ts`), or simple globs (`**/*.gen.ts`, `src/generated/*`).
+
+A present-but-malformed file (bad key, unknown analyzer, bad YAML) **fails loud** with a clear error
+pointing at the line — it never silently degrades to defaults.
+
 ## What M0 catches: `assertion-free-test`
 
 A test the PR added or changed that **can never fail** because it asserts nothing:
