@@ -1,6 +1,10 @@
-import { describe, it, expect } from 'vitest';
-import { riskyDiffNoTest, __test__ } from '../src/analyzers/riskyDiffNoTest';
+import { describe, it, expect, afterEach } from 'vitest';
+import { riskyDiffNoTest, setSkipGenerated, __test__ } from '../src/analyzers/riskyDiffNoTest';
+import { isGeneratedPath } from '../src/paths';
 import type { AnalyzerContext, ChangedFile, Finding } from '../src/types';
+
+// `skipGenerated` is module-level mutable; restore the default after each test so ordering can't leak.
+afterEach(() => setSkipGenerated(true));
 
 const { tokenize, touchesRiskyVocab, basenameStem, stemsCorrelated } = __test__;
 
@@ -165,5 +169,63 @@ describe('risky-diff-no-test · scoping & safety', () => {
         expect(f.verdict).not.toBe('CONTRADICTED');
       }
     }
+  });
+});
+
+describe('isGeneratedPath', () => {
+  it.each([
+    ['action-dist/cli.cjs', true], // the recurring false-ish positive from the dogfood
+    ['dist/auth.js', true],
+    ['build/auth.js', true],
+    ['packages/foo/dist/auth.js', true], // nested generated dir
+    ['vendor/lib.min.js', true], // minified bundle
+    ['app.bundle.js', true],
+    ['src/auth.ts', false], // hand-written source — must NOT be skipped
+    ['lib/auth.ts', false], // 'lib' is not a generated dir
+    ['auth.ts', false],
+    ['README.md', false],
+  ])('%s → generated=%s', (path, expected) => {
+    expect(isGeneratedPath(path)).toBe(expected);
+  });
+});
+
+describe('risky-diff-no-test · generated-path skip', () => {
+  // The exact case that fired on every PR this session: the bundled artifact carries the project's own
+  // `token` vocab. It must be skipped by default (it's not human-authored source a reviewer can act on).
+  it('skips action-dist/cli.cjs by default (no finding)', () => {
+    const f = run({
+      changedFiles: [{ path: 'action-dist/cli.cjs' }],
+      files: { 'action-dist/cli.cjs': `function token(){return'x'}\nexport function login(){}\n` },
+    });
+    expect(f).toHaveLength(0);
+  });
+
+  it('skips dist/ and *.min.js paths', () => {
+    expect(
+      run({ changedFiles: [{ path: 'dist/auth.js' }], files: { 'dist/auth.js': `export const x=1;\n` } }),
+    ).toHaveLength(0);
+    expect(
+      run({ changedFiles: [{ path: 'vendor/lib.min.js' }], files: { 'vendor/lib.min.js': `var token=1;\n` } }),
+    ).toHaveLength(0);
+  });
+
+  it('still flags hand-written source with the same vocab (does NOT over-suppress)', () => {
+    const f = run({
+      changedFiles: [{ path: 'src/auth.ts' }],
+      files: { 'src/auth.ts': `export function login() {}\n` },
+    });
+    expect(f).toHaveLength(1);
+    expect(f[0].verdict).toBe('UNVERIFIED');
+  });
+
+  it('--no-skip-generated (setSkipGenerated(false)) re-enables flagging generated paths', () => {
+    setSkipGenerated(false);
+    const f = run({
+      changedFiles: [{ path: 'action-dist/cli.cjs' }],
+      files: { 'action-dist/cli.cjs': `function token(){return'x'}\n` },
+    });
+    expect(f).toHaveLength(1);
+    expect(f[0].verdict).toBe('UNVERIFIED');
+    expect(f[0].detail).toContain("'token'");
   });
 });

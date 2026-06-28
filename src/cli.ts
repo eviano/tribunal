@@ -7,6 +7,7 @@ import type { Claim } from './types.js';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { runPropose, type ProposeProvider } from './propose.js';
 import { renderSarif } from './report/render.js';
+import { setSkipGenerated } from './analyzers/riskyDiffNoTest.js';
 
 interface CliOptions {
   command: string;
@@ -28,6 +29,7 @@ interface CliOptions {
   cwd: string;
   format: 'md' | 'json' | 'sarif';
   hardFail: boolean;
+  noSkipGenerated: boolean;
 }
 
 const HELP = `tribunal — a deterministic, no-LLM CI gate for agent-authored PRs
@@ -46,6 +48,8 @@ check — options:
   --format <fmt>   Output format: md (default), json, or sarif (upload via github/codeql-action/upload-sarif).
   --hard-fail      Exit non-zero when there is at least one CONTRADICTED finding.
                    Off by default (report-only). Gates ONLY on CONTRADICTED.
+  --no-skip-generated  Don't skip generated/build-output paths in risky-diff-no-test
+                   (dist/, *.min.js, …). Default skips them; this re-enables flagging them.
 
 propose — options:
   --diff <file>      Diff to propose claims for (required for propose).
@@ -76,6 +80,7 @@ function parseArgs(argv: string[]): CliOptions {
     format: 'md',
     hardFail: false,
     allowSendDiff: false,
+    noSkipGenerated: false,
   };
   const rest = [...argv];
   while (rest.length) {
@@ -129,6 +134,9 @@ function parseArgs(argv: string[]): CliOptions {
       }
       case '--hard-fail':
         opts.hardFail = true;
+        break;
+      case '--no-skip-generated':
+        opts.noSkipGenerated = true;
         break;
       default:
         if (!a.startsWith('-') && !opts.command) opts.command = a;
@@ -185,6 +193,16 @@ async function runProposeCmd(opts: CliOptions): Promise<void> {
 }
 
 function runCheckCmd(opts: CliOptions): void {
+  // riskyDiffNoTest skips generated/build-output paths by default. Disable via --no-skip-generated or
+  // TRIBUNAL_NO_SKIP_GENERATED=1 (an opinionated default must never silently suppress a wanted file).
+  if (
+    opts.noSkipGenerated ||
+    process.env.TRIBUNAL_NO_SKIP_GENERATED === '1' ||
+    process.env.TRIBUNAL_NO_SKIP_GENERATED === 'true'
+  ) {
+    setSkipGenerated(false);
+  }
+
   let claims: Claim[] | undefined;
   if (opts.claimsFile) claims = parseClaims(readFileSync(opts.claimsFile, 'utf8'));
   else if (opts.prBodyFile) claims = parseClaims(readFileSync(opts.prBodyFile, 'utf8'), { requireFence: true });

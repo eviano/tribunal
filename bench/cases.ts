@@ -11,6 +11,10 @@ import type { BenchCase } from './harness.js';
  * never flip a case's TP/TN/FP/FN outcome, so it has nothing to prove in this corpus. Its behavior is
  * covered by unit tests instead (test/riskyDiffNoTest.test.ts). It is exercised *incidentally* by some
  * cases below (e.g. the `token` constant in C9/D11 emits a 🟡), which confirms it stays non-blocking.
+ *
+ * NOTE on generated-path skipping: no corpus case uses a generated/build-output path (dist/, *.min.js,
+ * …), so `risky-diff-no-test`'s generated-path skip (src/paths.ts) is a no-op on this corpus — the
+ * 20/20 result is unaffected. The skip is verified by unit tests instead.
  */
 export const cases: BenchCase[] = [
   // ───────────────────────── defects (expect ≥1 CONTRADICTED) ─────────────────────────
