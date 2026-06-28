@@ -25,6 +25,25 @@ const SOURCE_EXT_RE = /\.[cm]?[jt]sx?$/i;
 const JS_EXT_RE = /\.[cm]?jsx?$/i;
 const MAX_REEXPORT_DEPTH = 4;
 
+/**
+ * Node.js built-in modules. These are environment-provided and never "unresolved" — flagging them
+ * (which happens whenever the target repo has no resolvable node_modules on the runner) is pure noise,
+ * so they're skipped before the resolution-failed branch. Covers both the `node:` prefix (preferred)
+ * and the legacy bare form.
+ */
+const NODE_BUILTINS = new Set([
+  'assert', 'async_hooks', 'buffer', 'child_process', 'cluster', 'console', 'constants', 'crypto',
+  'dgram', 'diagnostics_channel', 'dns', 'domain', 'events', 'fs', 'http', 'http2', 'https', 'inspector',
+  'module', 'net', 'os', 'path', 'perf_hooks', 'process', 'punycode', 'querystring', 'readline', 'repl',
+  'stream', 'string_decoder', 'sys', 'test', 'timers', 'tls', 'trace_events', 'tty', 'url', 'util',
+  'v8', 'vm', 'wasi', 'worker_threads', 'zlib',
+]);
+
+function isNodeBuiltin(spec: string): boolean {
+  if (spec.startsWith('node:')) return true;
+  return NODE_BUILTINS.has(spec);
+}
+
 function scriptKindForPath(path: string): ts.ScriptKind {
   if (/\.tsx$/i.test(path)) return ts.ScriptKind.TSX;
   if (/\.jsx$/i.test(path)) return ts.ScriptKind.JSX;
@@ -199,6 +218,9 @@ function checkFile(
     if (!overlaps(addedLines, start, end)) continue;
 
     const spec = stmt.moduleSpecifier.text;
+    // Node.js built-ins are environment-provided; never flag them as unresolved (pure noise on a runner
+    // without node_modules). This covers `node:fs`, `node:crypto`, and the bare `fs`/`path`/etc. form.
+    if (isNodeBuiltin(spec)) continue;
     const isRelative = spec.startsWith('.') || isAbsolute(spec);
     const resolved = resolveModule(spec, absFile, r);
 
