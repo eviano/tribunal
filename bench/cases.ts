@@ -184,4 +184,44 @@ export const cases: BenchCase[] = [
     changed: [{ path: 'src/net.ts' }],
     claims: ['no-default-flip'],
   },
+
+  // ───────────────── adversarial: real refactors that must NOT false-fire ─────────────────
+  {
+    id: 'C9-move-export-between-changed-files',
+    label: 'clean',
+    description:
+      'Refactor moves `export const TOKEN` from src/a.ts to src/b.ts — both changed. The aggregate ' +
+      'exported surface is unchanged, so a per-file diff (the old behavior) would false-🔴; aggregation ' +
+      'must keep this clean.',
+    files: {
+      'src/a.ts': `export const other = 1;\n`,
+      'src/b.ts': `export const TOKEN = 'x';\n`,
+    },
+    baseFiles: {
+      'src/a.ts': `export const other = 1;\nexport const TOKEN = 'x';\n`,
+      'src/b.ts': ``,
+    },
+    base: 'BASE',
+    changed: [{ path: 'src/a.ts' }, { path: 'src/b.ts' }],
+    claims: ['no-public-api-change'],
+  },
+  {
+    id: 'D11-net-export-removed-no-move',
+    label: 'defect',
+    description:
+      'Claims "no-public-api-change" but genuinely removes an export — `TOKEN` is gone from src/a.ts and ' +
+      'not re-added in src/b.ts (the other changed file). Aggregation across changed files still reports a ' +
+      'net -TOKEN, so this is caught (the defect direction the aggregation change must preserve).',
+    files: {
+      'src/a.ts': `export const other = 1;\n`,
+      'src/b.ts': `export const unrelated = 2;\n`,
+    },
+    baseFiles: {
+      'src/a.ts': `export const other = 1;\nexport const TOKEN = 'x';\n`,
+      'src/b.ts': ``,
+    },
+    base: 'BASE',
+    changed: [{ path: 'src/a.ts' }, { path: 'src/b.ts' }],
+    claims: ['no-public-api-change'],
+  },
 ];

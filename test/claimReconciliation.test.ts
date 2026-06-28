@@ -108,6 +108,43 @@ describe('claim-reconciliation · no-public-api-change', () => {
     });
     expect(f.verdict).toBe('UNVERIFIED');
   });
+
+  it('PASS when an export moves between two CHANGED files (aggregate surface unchanged)', () => {
+    // TOKEN moved from a.ts to b.ts; both files are changed. Per-file diffing would report
+    // -TOKEN / +TOKEN; aggregation over the changed-file set cancels them → no net change.
+    const f = sole({
+      claims: [claim('no-public-api-change')],
+      base: 'BASE',
+      changedFiles: [{ path: 'src/a.ts' }, { path: 'src/b.ts' }],
+      baseFiles: {
+        'src/a.ts': `export const other = 1;\nexport const TOKEN = 'x';\n`,
+        'src/b.ts': ``,
+      },
+      files: {
+        'src/a.ts': `export const other = 1;\n`,
+        'src/b.ts': `export const TOKEN = 'x';\n`,
+      },
+    });
+    expect(f.verdict).toBe('PASS');
+  });
+
+  it('CONTRADICTED when an export is removed with no move (net surface change)', () => {
+    const f = sole({
+      claims: [claim('no-public-api-change')],
+      base: 'BASE',
+      changedFiles: [{ path: 'src/a.ts' }, { path: 'src/b.ts' }],
+      baseFiles: {
+        'src/a.ts': `export const other = 1;\nexport const TOKEN = 'x';\n`,
+        'src/b.ts': ``,
+      },
+      files: {
+        'src/a.ts': `export const other = 1;\n`,
+        'src/b.ts': `export const unrelated = 2;\n`,
+      },
+    });
+    expect(f.verdict).toBe('CONTRADICTED');
+    expect(f.detail).toContain('-TOKEN');
+  });
 });
 
 describe('claim-reconciliation · no-default-flip', () => {

@@ -57,7 +57,20 @@ function verifyAddedTest(ctx: AnalyzerContext): VerifierResult {
 
 const EMPTY_EXPORTS: DirectExports = { names: new Set(), hasDefault: false, uncertain: false };
 
-/** "no public API change" → exported-symbol set is identical between base and head for changed files. */
+/**
+ * "no public API change" → the AGGREGATE exported-symbol set across changed files is identical between
+ * base and head.
+ *
+ * Why aggregate, not per-file: a refactor that moves `export const foo` from a.ts to b.ts (both changed)
+ * leaves the package surface unchanged, yet a per-file diff reports `-foo` in one file and `+foo` in the
+ * other — a false CONTRADICTED. Unchanged files export the same set on both sides, so they cancel out of
+ * the diff; aggregating only over changed files is therefore sound and bounded, and fixes the move case.
+ *
+ * Residual limitation: a symbol moved from a changed file into an UNCHANGED file still looks removed,
+ * because unchanged files are outside this diff-local view. Resolving that needs entry-point scoping
+ * (api-extractor); until then such a case degrades to UNVERIFIED via the `uncertain` path only when an
+ * uncertain module is present. This is strictly tighter than the prior per-file behavior.
+ */
 function verifyNoPublicApiChange(ctx: AnalyzerContext): VerifierResult {
   if (!ctx.base || !ctx.readBaseFile) {
     return {
@@ -67,7 +80,10 @@ function verifyNoPublicApiChange(ctx: AnalyzerContext): VerifierResult {
     };
   }
 
-  const changes: string[] = [];
+  const baseNames = new Set<string>();
+  const headNames = new Set<string>();
+  let baseDefault = false;
+  let headDefault = false;
   let uncertain = false;
 
   for (const f of ctx.changedFiles) {
@@ -79,29 +95,28 @@ function verifyNoPublicApiChange(ctx: AnalyzerContext): VerifierResult {
 
     const baseExp = baseContent ? directExports(baseContent, f.path) : EMPTY_EXPORTS;
     const headExp = headContent ? directExports(headContent, f.path) : EMPTY_EXPORTS;
-    if (baseExp.uncertain || headExp.uncertain) {
-      uncertain = true;
-      continue;
-    }
-
-    const added = [...headExp.names].filter((n) => !baseExp.names.has(n));
-    const removed = [...baseExp.names].filter((n) => !headExp.names.has(n));
-    if (baseExp.hasDefault !== headExp.hasDefault) {
-      (headExp.hasDefault ? added : removed).push('default');
-    }
-    if (added.length || removed.length) {
-      const parts: string[] = [];
-      if (added.length) parts.push(`+${added.join(', +')}`);
-      if (removed.length) parts.push(`-${removed.join(', -')}`);
-      changes.push(`${f.path} (${parts.join('; ')})`);
-    }
+    if (baseExp.uncertain || headExp.uncertain) uncertain = true;
+    for (const n of baseExp.names) baseNames.add(n);
+    for (const n of headExp.names) headNames.add(n);
+    if (baseExp.hasDefault) baseDefault = true;
+    if (headExp.hasDefault) headDefault = true;
   }
 
-  if (changes.length) {
+  const added = [...headNames].filter((n) => !baseNames.has(n));
+  const removed = [...baseNames].filter((n) => !headNames.has(n));
+  if (baseDefault !== headDefault) (headDefault ? added : removed).push('default');
+
+  // Only CONTRADICT when the net change is a certainty. If any changed module is non-enumerable
+  // (`export *`, CJS), a "removed" symbol may live there and an "added" one may have pre-existed — so
+  // degrade to UNVERIFIED rather than risk a false red (Trust Contract §3.4).
+  if ((added.length || removed.length) && !uncertain) {
+    const parts: string[] = [];
+    if (added.length) parts.push(`+${added.join(', +')}`);
+    if (removed.length) parts.push(`-${removed.join(', -')}`);
     return {
       verdict: 'CONTRADICTED',
-      title: 'Claimed no public API change, but exports changed',
-      detail: `Exported symbols changed in: ${changes.join(' | ')}.`,
+      title: 'Claimed no public API change, but the exported surface changed',
+      detail: `Net exported-symbol change across changed files: ${parts.join('; ')}.`,
     };
   }
   if (uncertain) {
@@ -114,7 +129,7 @@ function verifyNoPublicApiChange(ctx: AnalyzerContext): VerifierResult {
   return {
     verdict: 'PASS',
     title: 'Claim confirmed: no public API change',
-    detail: 'No exported symbols were added or removed in changed source files.',
+    detail: 'The aggregate exported-symbol set across changed files is unchanged.',
   };
 }
 
