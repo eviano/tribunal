@@ -25,7 +25,7 @@ export {
 } from './propose.js';
 export { parseUnifiedDiff } from './diff/parseUnifiedDiff.js';
 export { getChangedFiles, makeContext, type DiffSource } from './diff/gitDiff.js';
-export { buildReport, exitCode, renderJson, renderMarkdown } from './report/render.js';
+export { buildReport, exitCode, renderJson, renderMarkdown, renderSarif } from './report/render.js';
 
 export interface RunOptions {
   analyzers?: Analyzer[];

@@ -81,6 +81,53 @@ jobs:
 
 This repo dogfoods its own action — see [.github/workflows/tribunal.yml](.github/workflows/tribunal.yml).
 
+## SARIF output (GitHub code-scanning alerts)
+
+Tribunal can emit [SARIF](https://docs.oasis-open.org/sarif/) so findings appear as GitHub
+code-scanning alerts with proper tracking, dismissal, and filter-by-severity across runs.
+
+```bash
+tribunal check --diff pr.diff --format sarif > tribunal.sarif
+```
+
+Level mapping (deliberate — matches "gate only on CONTRADICTED"):
+
+| Tribunal verdict | SARIF level |
+|---|---|
+| 🔴 CONTRADICTED | `error` |
+| 🟡 UNVERIFIED | `note` |
+| 🟢 PASS | _omitted_ |
+
+Only the blocking verdict becomes an `error` alert; UNVERIFIED is visible but non-noisy. Each finding
+carries a stable `partialFingerprints` (derived from analyzer + file + line + claim, **not** from the
+prose) so GitHub tracks the same alert across runs — rewording a finding's title won't fork a new one.
+
+Upload it in a workflow (bring your own upload step; the bundled action stays markdown-only to keep its
+permission footprint minimal):
+
+```yaml
+jobs:
+  tribunal-sarif:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write   # required by upload-sarif
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - run: npx @eviano/tribunal check \
+          --base ${{ github.event.pull_request.base.sha }} \
+          --head ${{ github.event.pull_request.head.sha }} \
+          --format sarif > tribunal.sarif
+      - uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: tribunal.sarif
+          category: tribunal
+```
+
+SARIF is data, never a gate — the `--hard-fail` exit code still comes from `exitCode()`. You can run
+both: post the markdown comment (via the action) **and** upload SARIF in the same job.
+
 ## What M0 catches: `assertion-free-test`
 
 A test the PR added or changed that **can never fail** because it asserts nothing:
