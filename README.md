@@ -117,6 +117,28 @@ re-exports, and degrades to 🟡 UNVERIFIED whenever exports can't be statically
 unresolvable re-exports). Default imports are never flagged (interop synthesizes a default). Scope for
 M1 is imports; full identifier/call resolution is a later increment.
 
+## What it also ships: `risky-diff-no-test`
+
+A **signal** analyzer (never a gate) that fires when a PR touches a security-relevant area but adds no
+correlated asserting test — the "silence is not an escape hatch" check. An agent that changes auth,
+crypto, or payment code and ships nothing to cover it gets a finding even when it wrote no PR body:
+
+```ts
+// src/auth.ts — changed by the PR
+export function login(user, pass) { return user === pass; }   // 🟡 UNVERIFIED: risky area ('auth'),
+                                                              //              no correlated asserting test
+```
+
+- 🟡 **UNVERIFIED** — a risky area (path segment *or* a changed-line identifier token: `auth`,
+  `crypto`, `payment`, `token`, `secret`, …) was touched but no correlated asserting test was detected.
+  **Never blocks** — "is this risky?" is semantic, and a semantic guess may never flip a build red.
+- 🟢 **PASS** — risky area touched **and** a correlated asserting test was added (test basename stem
+  shares a token with the risky file, e.g. `auth.ts` ↔ `auth.test.ts`).
+
+It tokenizes (camelCase / kebab / snake) and matches on whole tokens, not substrings, so `authors.ts`
+and `tokenize.ts` are correctly *not* flagged. Because it can only ever emit PASS/UNVERIFIED, it is safe
+to run under `--hard-fail`.
+
 ## What M3 adds: `claim-reconciliation`
 
 Verifies the agent's **own claims** against the diff — deterministically. Claims are declared in a

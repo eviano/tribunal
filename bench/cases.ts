@@ -5,6 +5,12 @@ import type { BenchCase } from './harness.js';
  * adversarial on the clean side: it includes risky-looking-but-correct changes (big refactors with a
  * no-API-change claim, tests that call helpers without a literal assert) that a naive checker would
  * false-flag. The real MSR'26 PR-MCI labeled set plugs in alongside these (see bench/README.md).
+ *
+ * NOTE on `risky-diff-no-test`: it has NO entries here, by design. The harness scores only the
+ * blocking signal (flagged = CONTRADICTED > 0), and `risky-diff-no-test` is UNVERIFIED-only — it can
+ * never flip a case's TP/TN/FP/FN outcome, so it has nothing to prove in this corpus. Its behavior is
+ * covered by unit tests instead (test/riskyDiffNoTest.test.ts). It is exercised *incidentally* by some
+ * cases below (e.g. the `token` constant in C9/D11 emits a 🟡), which confirms it stays non-blocking.
  */
 export const cases: BenchCase[] = [
   // ───────────────────────── defects (expect ≥1 CONTRADICTED) ─────────────────────────
